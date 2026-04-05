@@ -13,17 +13,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: ocaml/setup-ocaml@v3
+      - uses: coq-community/docker-coq-action@v1
         with:
-          ocaml-compiler: "4.14.1"
-          opam-repositories: |
-            rocq-released: https://rocq-prover.org/opam/released
-            default: https://opam.ocaml.org
+          coq_version: "9.1"
+          custom_script: |
+            sudo chown -R 1000:1000 .
+            make
 
-      - name: Install Rocq
-        run: opam install rocq-prover
-
-      - name: Build
-        run: |
-          eval $(opam env)
-          make
+      - name: Revert permissions
+        if: always()
+        run: sudo chown -R 1001:116 .

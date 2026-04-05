@@ -1,0 +1,4 @@
+{
+  "name": "Rocq",
+  "image": "rocq/rocq-prover:9.1"
+}
