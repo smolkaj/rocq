@@ -1,3 +1,5 @@
 -R . Roq
 
+Primes.v
+SortedPermutation.v
 PrimeFactorization.v
