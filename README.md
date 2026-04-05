@@ -1,4 +1,4 @@
-# Roq
+# Rocq
 
 Formally verified theorems in [Rocq](https://rocq-prover.org/).
 
