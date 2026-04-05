@@ -18,7 +18,7 @@ Fixpoint product (l : list nat) : nat :=
   end.
 
 Definition factorization_of (n : nat) (l : list nat) : Prop :=
-  Forall prime l /\ Sorted Nat.le l /\ product l = n.
+  Forall prime l /\ StronglySorted Nat.le l /\ product l = n.
 
 (** ** Smallest factor and primality *)
 
@@ -121,23 +121,28 @@ Fixpoint insert (x : nat) (l : list nat) : list nat :=
   | h :: t => if x <=? h then x :: h :: t else h :: insert x t
   end.
 
+Lemma Forall_insert : forall x y l,
+  y <= x -> Forall (Nat.le y) l -> Forall (Nat.le y) (insert x l).
+Proof.
+  intros x y l Hyx Hl. induction l as [| h t IH]; simpl.
+  - constructor; [lia | constructor].
+  - destruct (x <=? h); constructor; inversion Hl; auto.
+Qed.
+
 Lemma insert_sorted :
-  forall x l, Sorted Nat.le l -> Sorted Nat.le (insert x l).
+  forall x l, StronglySorted Nat.le l -> StronglySorted Nat.le (insert x l).
 Proof.
   intros x l. induction l as [| h t IH]; simpl; intro Hs.
   - constructor; constructor.
   - destruct (x <=? h) eqn:E.
-    + apply Nat.leb_le in E. constructor; [exact Hs | constructor; exact E].
+    + apply Nat.leb_le in E.
+      constructor; [exact Hs |].
+      constructor; [exact E |].
+      eapply Forall_impl; [| exact (proj2 (StronglySorted_inv Hs))]. lia.
     + apply Nat.leb_gt in E.
-      assert (Ht : Sorted Nat.le t) by (inversion Hs; assumption).
-      assert (Hrel : HdRel Nat.le h t) by (inversion Hs; assumption).
-      specialize (IH Ht).
-      constructor; [exact IH |].
-      destruct t as [| b t']; simpl in *.
-      -- constructor. lia.
-      -- destruct (x <=? b) eqn:E2.
-         ++ constructor. lia.
-         ++ inversion Hrel; subst. constructor. assumption.
+      destruct (StronglySorted_inv Hs) as [Ht Hrel].
+      constructor; [exact (IH Ht) |].
+      apply Forall_insert; [lia | exact Hrel].
 Qed.
 
 Lemma insert_perm :
@@ -158,11 +163,6 @@ Proof.
 Qed.
 
 (** ** Divisibility helpers *)
-
-Lemma divide_pos_mul : forall a b, 2 <= b -> Nat.divide b a -> a = 0 \/ 2 <= a.
-Proof.
-  intros a b Hb [q Hq]. destruct q; [left; lia | right; nia].
-Qed.
 
 Lemma divide_lt :
   forall p n, 2 <= p -> 2 <= n -> Nat.divide p n -> n / p < n.
@@ -188,6 +188,30 @@ Proof.
   rewrite Hmod in Hdm. lia.
 Qed.
 
+(** ** Product of primes *)
+
+Lemma product_perm :
+  forall l1 l2, Permutation l1 l2 -> product l1 = product l2.
+Proof.
+  intros l1 l2 H. induction H; simpl; lia.
+Qed.
+
+Lemma product_ge_1 :
+  forall l, Forall prime l -> 1 <= product l.
+Proof.
+  induction l as [| h t IH]; simpl; [lia |].
+  intro Hpl. inversion Hpl; subst.
+  destruct H1 as [Hh _]. specialize (IH H2). nia.
+Qed.
+
+(** If [p] is prime and [p :: t] is a list of primes, then
+    [p * product t > product t]. *)
+Lemma product_cons_lt :
+  forall p t, prime p -> Forall prime t -> product t < p * product t.
+Proof.
+  intros p t [Hp _] Ht. pose proof (product_ge_1 t Ht). nia.
+Qed.
+
 (** ** Part I: Existence *)
 
 Theorem factorization_exists :
@@ -197,7 +221,7 @@ Proof.
   destruct (prime_dec n) as [Hprime | Hnotprime].
   - exists [n]. split; [| split].
     + constructor; [exact Hprime | constructor].
-    + repeat constructor.
+    + constructor; constructor.
     + simpl. lia.
   - destruct (smallest_factor_spec n Hn) as [Hsf2 [Hsfn [Hdiv Hmin]]].
     assert (Hprime : prime (smallest_factor n)) by (apply smallest_factor_prime; lia).
@@ -223,7 +247,7 @@ Lemma prime_divides_product :
     exists x, In x l /\ Nat.divide p x.
 Proof.
   intros p l Hp. induction l as [| h t IH]; simpl.
-  - intros [q Hq]. destruct Hp as [Hp2 _]. simpl in Hq.
+  - intros [q Hq]. destruct Hp as [Hp2 _].
     destruct q; simpl in *; lia.
   - intro Hdiv.
     destruct (prime_divides_mul _ _ _ Hp Hdiv) as [Hh | Ht].
@@ -254,20 +278,6 @@ Proof.
     eapply perm_trans; [| apply perm_swap]. constructor. exact (IH Hin).
 Qed.
 
-Lemma product_perm :
-  forall l1 l2, Permutation l1 l2 -> product l1 = product l2.
-Proof.
-  unfold product. intros l1 l2 H. induction H; simpl; lia.
-Qed.
-
-Lemma product_ge_1 :
-  forall l, Forall prime l -> 1 <= product l.
-Proof.
-  induction l as [| h t IH]; simpl; [lia |].
-  intro Hpl. inversion Hpl; subst.
-  destruct H1 as [Hh _]. specialize (IH H2). nia.
-Qed.
-
 (** Two prime lists with the same product are permutations of each other. *)
 Lemma factorization_perm :
   forall n l1 l2,
@@ -280,11 +290,11 @@ Proof.
   destruct l1 as [| p t1].
   - destruct l2 as [| q t2]; [constructor |].
     exfalso. simpl in Hp1, Hp2. subst n.
-    inversion Hpl2; subst. destruct H1 as [Hq _].
-    pose proof (product_ge_1 t2 H2). nia.
-  - simpl in Hp1.
-    assert (Hpp : prime p) by (inversion Hpl1; assumption).
+    inversion Hpl2; subst.
+    pose proof (product_cons_lt q t2 H1 H2). nia.
+  - assert (Hpp : prime p) by (inversion Hpl1; assumption).
     assert (Hpt1 : Forall prime t1) by (inversion Hpl1; assumption).
+    simpl in Hp1.
     (* p | product l2 because p * product t1 = product l2 *)
     assert (Hpdiv : Nat.divide p (product l2)).
     { rewrite Hp2, <- Hp1. exists (product t1). lia. }
@@ -303,16 +313,14 @@ Proof.
         by (rewrite (product_perm _ _ Hperm2); reflexivity).
       destruct Hpp as [Hp2' _]. nia. }
     assert (Hlt : product t1 < n).
-    { rewrite <- Hp1. destruct Hpp as [Hp2' _].
-      pose proof (product_ge_1 t1 Hpt1). nia. }
+    { rewrite <- Hp1. exact (product_cons_lt p t1 Hpp Hpt1). }
     eapply perm_trans; [| apply Permutation_sym; exact Hperm2].
     constructor. apply (IH _ Hlt); [exact Hpt1 | exact Hpt2 | reflexivity | symmetry; exact Hprod_eq].
 Qed.
 
-(** Sorted permutations of the same list are equal. *)
-
-Lemma sorted_perm_eq :
-  forall l1 l2, Sorted Nat.le l1 -> Sorted Nat.le l2 ->
+(** Strongly sorted permutations are equal. *)
+Lemma ssorted_perm_eq :
+  forall l1 l2, StronglySorted Nat.le l1 -> StronglySorted Nat.le l2 ->
     Permutation l1 l2 -> l1 = l2.
 Proof.
   intros l1. induction l1 as [| a l1 IH]; intros l2 Hs1 Hs2 Hp.
@@ -325,14 +333,13 @@ Proof.
         by (apply (Permutation_in _ Hp); left; reflexivity).
       destruct Hin_b as [-> | Hin_b]; [reflexivity |].
       destruct Hin_a as [-> | Hin_a]; [reflexivity |].
-      (* Both a and b are in each other's tails, so by sortedness a <= b and b <= a *)
-      pose proof (Sorted_extends Nat.le_trans Hs1) as Ha.
-      pose proof (Sorted_extends Nat.le_trans Hs2) as Hb.
+      destruct (StronglySorted_inv Hs1) as [_ Ha].
+      destruct (StronglySorted_inv Hs2) as [_ Hb].
       rewrite Forall_forall in Ha, Hb.
       specialize (Ha b Hin_b). specialize (Hb a Hin_a). lia. }
     subst b. f_equal. apply IH.
-    + exact (proj1 (Sorted_inv Hs1)).
-    + exact (proj1 (Sorted_inv Hs2)).
+    + exact (proj1 (StronglySorted_inv Hs1)).
+    + exact (proj1 (StronglySorted_inv Hs2)).
     + exact (Permutation_cons_inv Hp).
 Qed.
 
@@ -343,7 +350,7 @@ Theorem factorization_unique :
     factorization_of n l1 -> factorization_of n l2 -> l1 = l2.
 Proof.
   intros n l1 l2 [Hpl1 [Hs1 Hp1]] [Hpl2 [Hs2 Hp2]].
-  apply sorted_perm_eq; [assumption | assumption |].
+  apply ssorted_perm_eq; [assumption | assumption |].
   apply (factorization_perm n); congruence.
 Qed.
 
