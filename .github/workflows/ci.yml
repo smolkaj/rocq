@@ -16,9 +16,9 @@ jobs:
       - uses: ocaml/setup-ocaml@v3
         with:
           ocaml-compiler: "4.14.1"
-
-      - name: Add Rocq opam repository
-        run: opam repo add rocq-released https://rocq-prover.org/opam/released
+          opam-repositories: |
+            rocq-released: https://rocq-prover.org/opam/released
+            default: https://opam.ocaml.org
 
       - name: Install Rocq
         run: opam install rocq-prover
@@ -26,5 +26,4 @@ jobs:
       - name: Build
         run: |
           eval $(opam env)
-          rocq makefile -f _CoqProject -o Makefile.rocq
-          make -f Makefile.rocq
+          make

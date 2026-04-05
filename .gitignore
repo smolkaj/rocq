@@ -8,3 +8,4 @@
 Makefile.rocq
 Makefile.rocq.conf
 .Makefile.rocq.d
+.lia.cache
