@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: "4.14.1"
+
+      - name: Add Rocq opam repository
+        run: opam repo add rocq-released https://rocq-prover.org/opam/released
+
+      - name: Install Rocq
+        run: opam install rocq-prover
+
+      - name: Build
+        run: |
+          eval $(opam env)
+          rocq makefile -f _CoqProject -o Makefile.rocq
+          make -f Makefile.rocq
